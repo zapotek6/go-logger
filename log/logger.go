@@ -1,12 +1,25 @@
-package go_logger
+package log
 
 import (
+	"errors"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"os"
+	"strconv"
 )
 
 type Logger struct {
 	extLogger *zap.SugaredLogger
 }
+
+type Level int8
+
+const (
+	DebugLevel Level = iota - 1
+	InfoLevel
+	WarnLevel
+	ErrorLevel
+)
 
 func (l *Logger) SetExternalLogger(extLogger *zap.SugaredLogger) {
 	l.extLogger = extLogger
@@ -58,20 +71,47 @@ func Fatal(args ...interface{}) {
 	}
 }
 
-var logger Logger
-
-func GlobalLogger() (*Logger, error) {
-	if !logger.ExternalLoggerIsSet() {
-
-		//rawLogger, err := zap.NewProduction()
-		rawLogger, err := zap.NewDevelopment()
-
-		if nil != err {
-			return nil, err
-		} else {
-			logger.SetExternalLogger(rawLogger.Sugar())
-		}
+func SetLevel(prioLevel Level) error {
+	switch prioLevel {
+	case DebugLevel:
+		level.SetLevel(zapcore.DebugLevel)
+		break
+	case InfoLevel:
+		level.SetLevel(zapcore.InfoLevel)
+		break
+	case WarnLevel:
+		level.SetLevel(zapcore.WarnLevel)
+		break
+	case ErrorLevel:
+		level.SetLevel(zapcore.ErrorLevel)
+		break
+	default:
+		return errors.New("Invalid log level " + strconv.Itoa(int(prioLevel)))
 	}
 
-	return &logger, nil
+	return nil
+}
+
+var logger Logger
+
+var level zap.AtomicLevel
+
+func InitLogger() {
+	if !logger.ExternalLoggerIsSet() {
+
+		level = zap.NewAtomicLevel()
+		level.SetLevel(zapcore.InfoLevel)
+
+		encoderCfg := zap.NewProductionEncoderConfig()
+		//encoderCfg.TimeKey = ""
+		encoderCfg.EncodeTime = zapcore.ISO8601TimeEncoder
+
+		rawLogger := zap.New(zapcore.NewCore(
+			zapcore.NewJSONEncoder(encoderCfg),
+			zapcore.Lock(os.Stdout),
+			level,
+		))
+
+		logger.SetExternalLogger(rawLogger.Sugar())
+	}
 }
